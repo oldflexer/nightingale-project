@@ -1,0 +1,9 @@
+.venv/
+.vscode/
+assets/
+models/*
+*__pycache__*
+.env
+nightingale-project.code-workspace
+nightingale.log
+latest_silero_models.yml
