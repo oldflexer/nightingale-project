@@ -5,7 +5,7 @@ from typing import Optional
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
-from src.models import NewsItem
+from src.pipeline.interfaces import NewsItem
 
 
 class DefaultAggregator(PipelineComponent):
@@ -103,7 +103,3 @@ class StructuredAggregator(PipelineComponent):
         self._logger.info(f"Aggregated text: {len(context.aggregated_text)} chars")
         
         return context
-
-
-# Alias for convenience
-Aggregator = DefaultAggregator

@@ -3,7 +3,9 @@ Stage 7: Voice Conversion components (RVC).
 """
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Optional
+from typing import Optional, Any
+
+import numpy as np
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
@@ -28,7 +30,7 @@ class RVCComponent(PipelineComponent):
         self._rvc_model_path = Path(rvc_model_path) if rvc_model_path else None
         self._pitch_adjustment = pitch_adjustment
         self._index_path = Path(index_path) if index_path else None
-        self._model = None
+        self._model: Optional[Any] = None
     
     def setup(self) -> None:
         """Load RVC model."""
@@ -113,7 +115,6 @@ class RVCComponent(PipelineComponent):
         - Optional feature indexing
         """
         import soundfile as sf
-        import numpy as np
         
         self._logger.debug(f"Converting voice: {source_path} -> {output_path}")
         
@@ -186,9 +187,7 @@ class AudioEnhancementComponent(PipelineComponent):
         self._logger.info(f"Enhancing audio: {source_audio.name}")
         
         try:
-            from pathlib import Path
             import soundfile as sf
-            import numpy as np
             
             audio, sr = sf.read(source_audio)
             

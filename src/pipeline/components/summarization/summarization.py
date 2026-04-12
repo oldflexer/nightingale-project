@@ -6,7 +6,7 @@ from pathlib import Path
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
-from src.interfaces import Summarizer
+from src.pipeline.interfaces import Summarizer
 
 
 class LLMSummarizerComponent(PipelineComponent):

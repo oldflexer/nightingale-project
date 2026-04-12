@@ -2,7 +2,7 @@
 Stage 5: Voice Preparation components (VAD, STT, transcription).
 """
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Any
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
@@ -17,7 +17,7 @@ class VoiceLoaderComponent(PipelineComponent):
     Компонент загрузки референсного аудио для клонирования голоса.
     
     Выполняет:
-    1. VAD (Voice Activity Detection) — определение речевых участков
+    1. VAD (Voice Activity Detection) - определение речевых участков
     2. Загрузка и подготовка аудио
     
     Результат сохраняется в context.reference_audio_path.
@@ -32,7 +32,7 @@ class VoiceLoaderComponent(PipelineComponent):
         super().__init__(name="voice_loader", enabled=enabled)
         self._voice_sample_path = Path(voice_sample_path) if voice_sample_path else None
         self._vad_enabled = vad_enabled
-        self._vad_model = None
+        self._vad_model: Optional[Any] = None
     
     def setup(self) -> None:
         """Load VAD model if enabled."""
@@ -43,8 +43,7 @@ class VoiceLoaderComponent(PipelineComponent):
                 torch.set_num_threads(1)
                 self._vad_model = torch.hub.load(
                     'snakers4/silero-vad',
-                    'silero_vad',
-                    trust_repo=True
+                    'silero_vad'
                 )
                 self._logger.info("Silero VAD loaded successfully")
             except Exception as e:
@@ -85,7 +84,6 @@ class VoiceLoaderComponent(PipelineComponent):
         """Apply VAD to extract speech segments."""
         import torch
         import soundfile as sf
-        import numpy as np
         
         self._logger.debug("Applying VAD...")
         
@@ -98,7 +96,8 @@ class VoiceLoaderComponent(PipelineComponent):
         audio_tensor = torch.from_numpy(audio).float()
         
         # Get speech timestamps
-        speech_probs = self._vad_model(audio_tensor, sr)
+        if callable(self._vad_model):
+            speech_probs = self._vad_model(audio_tensor, sr)
         
         # For now, return original path
         # Full VAD implementation would extract speech segments
@@ -126,7 +125,7 @@ class STTTranscriberComponent(PipelineComponent):
     ):
         super().__init__(name="stt_transcriber", enabled=enabled)
         self._stt_model_name = stt_model
-        self._stt_model = None
+        self._stt_model: Optional[Any] = None
     
     def setup(self) -> None:
         """Load STT model."""
@@ -138,8 +137,7 @@ class STTTranscriberComponent(PipelineComponent):
                 self._stt_model = torch.hub.load(
                     'snakers4/silero-models',
                     'silero_stt',
-                    language='ru',
-                    trust_repo=True
+                    language='ru'
                 )
                 self._logger.info("Silero STT loaded successfully")
             except Exception as e:
@@ -188,7 +186,13 @@ class STTTranscriberComponent(PipelineComponent):
         audio_tensor = torch.from_numpy(audio).float()
         
         # Decode
-        return self._stt_model(audio_tensor, sr).item() if hasattr(self._stt_model, '__call__') else ""
+        if callable(self._stt_model):
+            result: Any = self._stt_model(audio_tensor, sr)
+            # Handle torch tensor result
+            if hasattr(result, 'item'):
+                return str(result.item())
+            return str(result)
+        return ""
 
 
 # =============================================================================

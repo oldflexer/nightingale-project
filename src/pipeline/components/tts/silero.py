@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, Callable, List
 from loguru import logger
-from src.interfaces import TTSEngine
+from src.pipeline.interfaces import TTSEngine
 
 
 class SileroTTSEngine(TTSEngine):

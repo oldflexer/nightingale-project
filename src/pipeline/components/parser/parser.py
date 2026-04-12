@@ -1,11 +1,11 @@
 """
-Stage 1: Parsing components.
+Stage 1: Parser Component.
 """
 from typing import Optional
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
-from src.interfaces import Parser
+from src.pipeline.interfaces import Parser
 
 
 class ParserComponent(PipelineComponent):

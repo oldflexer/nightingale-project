@@ -6,7 +6,7 @@ from typing import Optional
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
-from src.interfaces import Publisher
+from src.pipeline.interfaces import Publisher
 
 
 class PublisherComponent(PipelineComponent):
@@ -19,7 +19,7 @@ class PublisherComponent(PipelineComponent):
     
     def __init__(
         self,
-        publisher: Publisher,
+        publisher: Optional[Publisher] = None,
         enabled: bool = True,
     ):
         super().__init__(name="publisher", enabled=enabled)
@@ -40,6 +40,11 @@ class PublisherComponent(PipelineComponent):
             f"Publishing audio ({audio_path.name}, "
             f"caption: {len(caption)} chars)..."
         )
+        
+        if self._publisher is None:
+            self._logger.error("No publisher configured")
+            context.add_error("Publisher: no publisher configured")
+            return context
         
         try:
             success = self._publisher.publish(

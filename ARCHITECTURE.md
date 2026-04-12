@@ -8,6 +8,42 @@
 - **PipelineContext** — контейнер данных, передаваемый между стадиями
 - **Опциональные компоненты** — можно включать/выключать без изменения кода
 
+## Компоненты-пакеты
+
+```
+src/pipeline/components/
+├── parser/                    # Парсинг новостей
+│   ├── __init__.py
+│   └── parser.py
+├── aggregation/               # Агрегация текста
+│   ├── __init__.py
+│   └── aggregator.py
+├── summarization/             # Сжатие текста через LLM
+│   ├── __init__.py
+│   ├── summarization.py
+│   ├── ollama.py
+│   └── openrouter.py
+├── text_processing/           # Обработка текста (ударения, ёфикация)
+│   ├── __init__.py
+│   └── processors.py
+├── voice_preparation/         # Подготовка голоса (VAD, STT)
+│   ├── __init__.py
+│   └── voice_prep.py
+├── tts/                       # Синтез речи
+│   ├── __init__.py
+│   ├── tts.py
+│   ├── silero.py
+│   ├── f5.py
+│   └── coqui.py
+├── voice_conversion/          # Конвертация голоса (RVC)
+│   ├── __init__.py
+│   └── converter.py
+└── publishing/                 # Публикация
+    ├── __init__.py
+    ├── publisher.py
+    └── telegram.py
+```
+
 ## Стадии Pipeline
 
 ```
@@ -21,38 +57,39 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      STAGE 2: Text Aggregation                      │
 │  ┌─────────────────────────┐                                        │
-│  │ TextAggregatorComponent │  → aggregated_text                     │
+│  │ DefaultAggregator        │  → aggregated_text                     │
+│  │ StructuredAggregator     │                                        │
 │  └─────────────────────────┘                                        │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    STAGE 3: Text Summarization                      │
 │  ┌──────────────────────────┐                                       │
-│  │ LLMCompressorComponent   │  → summarized_text                     │
+│  │ LLMSummarizerComponent    │  → summarized_text                     │
 │  └──────────────────────────┘                                       │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │              STAGE 4: Text Processing (Optional)                     │
 │  ┌────────────────────┐  ┌─────────────────┐                        │
-│  │ AccentorComponent  │  │ YoReplacerComp. │  → processed_text       │
-│  │ (stress marks)     │  │ (Е → Ё via LLM) │                        │
+│  │ SileroAccentorComp. │  │ YoReplacerComp. │  → processed_text       │
+│  │ RuaccentComponent  │  │ LLMYoReplacer   │                        │
 │  └────────────────────┘  └─────────────────┘                        │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │           STAGE 5: Voice Preparation (Optional)                     │
 │  ┌────────────────────┐  ┌─────────────────┐  ┌──────────────────┐  │
-│  │ VoiceLoaderComp.   │→ │ STTTranscriber  │→ │ YoReplacerRef.   │  │
-│  │ (VAD, audio load)  │  │ (reference)     │  │ (E → Ё in ref)   │  │
+│  │ VoiceLoaderComp.    │→ │ STTTranscriber  │→ │ YoReplacerRef.   │  │
+│  │ (VAD, audio load)  │  │                 │  │                  │  │
 │  └────────────────────┘  └─────────────────┘  └──────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      STAGE 6: TTS Synthesis                         │
 │  ┌─────────────────────────────────────────────┐                    │
-│  │ TTSEngineComponent                          │  → raw_audio_path │
-│  │ (uses processed_text + reference_audio)     │                    │
+│  │ TTSComponent                                │  → raw_audio_path │
+│  │ TTSWithVoiceCloneComponent                  │                    │
 │  └─────────────────────────────────────────────┘                    │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
@@ -60,6 +97,7 @@
 │              STAGE 7: Voice Conversion (Optional)                    │
 │  ┌───────────────────────────┐                                       │
 │  │ RVCComponent              │  → final_audio_path                   │
+│  │ AudioEnhancementComponent │                                       │
 │  └───────────────────────────┘                                       │
 └─────────────────────────────────────────────────────────────────────┘
                                     ↓
@@ -67,6 +105,7 @@
 │                       STAGE 8: Publishing                           │
 │  ┌───────────────────────────┐                                       │
 │  │ TelegramPublisherComponent│                                       │
+│  │ MultiPublisherComponent    │                                       │
 │  └───────────────────────────┘                                       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -166,3 +205,4 @@ pipeline:
 4. **Testability** — можно тестировать компоненты по отдельности
 5. **Extensibility** — новые компоненты реализуют интерфейс
 6. **Configuration** — pipeline настраивается без изменения кода
+7. **Package Structure** — каждый компонент в отдельном пакете с вложенными модулями

@@ -14,15 +14,16 @@ Exports:
     Publishing: PublisherComponent, TelegramPublisherComponent, MultiPublisherComponent
 """
 
+# Parser
 from src.pipeline.components.parser import ParserComponent
-from src.pipeline.components.aggregation import (
-    DefaultAggregator,
-    StructuredAggregator,
-)
-from src.pipeline.components.summarization import (
-    LLMSummarizerComponent,
-    PromptBasedSummarizer,
-)
+
+# Aggregation
+from src.pipeline.components.aggregation import DefaultAggregator, StructuredAggregator
+
+# Summarization
+from src.pipeline.components.summarization import LLMSummarizerComponent, PromptBasedSummarizer
+
+# Text Processing
 from src.pipeline.components.text_processing import (
     SileroAccentorComponent,
     RuaccentComponent,
@@ -31,19 +32,21 @@ from src.pipeline.components.text_processing import (
     CompositeTextProcessor,
     TextProcessorComponent,
 )
+
+# Voice Preparation
 from src.pipeline.components.voice_preparation import (
     VoiceLoaderComponent,
     STTTranscriberComponent,
     ReferenceYoReplacerComponent,
 )
-from src.pipeline.components.tts import (
-    TTSComponent,
-    TTSWithVoiceCloneComponent,
-)
-from src.pipeline.components.voice_conversion import (
-    RVCComponent,
-    AudioEnhancementComponent,
-)
+
+# TTS
+from src.pipeline.components.tts import TTSComponent, TTSWithVoiceCloneComponent
+
+# Voice Conversion
+from src.pipeline.components.voice_conversion import RVCComponent, AudioEnhancementComponent
+
+# Publishing
 from src.pipeline.components.publishing import (
     PublisherComponent,
     TelegramPublisherComponent,

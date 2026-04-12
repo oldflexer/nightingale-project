@@ -3,7 +3,8 @@ import time
 import requests
 from typing import Optional
 from loguru import logger
-from src.interfaces import Summarizer
+from src.pipeline.interfaces import Summarizer
+
 
 class OllamaSummarizer(Summarizer):
     def __init__(

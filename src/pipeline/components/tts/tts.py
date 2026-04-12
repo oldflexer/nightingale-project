@@ -7,7 +7,7 @@ from typing import Optional
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
-from src.interfaces import TTSEngine
+from src.pipeline.interfaces import TTSEngine
 
 
 class TTSComponent(PipelineComponent):
@@ -112,7 +112,7 @@ class TTSWithVoiceCloneComponent(TTSComponent):
             
             # For F5-TTS style engines that support voice cloning
             if hasattr(self._tts, 'synthesize_with_reference'):
-                result_path = self._tts.synthesize_with_reference(
+                result_path = self._tts.synthesize_with_reference(  # type: ignore[attr-defined]
                     text=text,
                     reference_audio=reference_audio,
                     reference_text=reference_text,
@@ -168,7 +168,7 @@ class TTSWithVoiceCloneComponent(TTSComponent):
             self._logger.debug(f"Synthesizing chunk {idx+1}/{len(chunks)}...")
             
             if reference_audio:
-                wav, sr, _ = self._tts.infer(
+                wav, sr, _ = self._tts.infer(  # type: ignore[attr-defined]
                     gen_text=chunk,
                     ref_file=str(reference_audio),
                     ref_text=reference_text or "",
@@ -178,7 +178,7 @@ class TTSWithVoiceCloneComponent(TTSComponent):
                     speed=1.0,
                 )
             else:
-                wav, sr, _ = self._tts.infer(
+                wav, sr, _ = self._tts.infer(  # type: ignore[attr-defined]
                     gen_text=chunk,
                     ref_file="",
                     ref_text="",
@@ -190,7 +190,8 @@ class TTSWithVoiceCloneComponent(TTSComponent):
             audio_segments.append(wav)
         
         # Concatenate with silence
-        silence_duration = int(0.2 * sample_rate)
+        _sample_rate = sample_rate if sample_rate is not None else 24000
+        silence_duration = int(0.2 * _sample_rate)
         silence = np.zeros(silence_duration, dtype=audio_segments[0].dtype)
         
         final_audio = []

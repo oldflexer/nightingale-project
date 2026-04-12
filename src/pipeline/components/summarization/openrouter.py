@@ -1,5 +1,6 @@
-from src.interfaces import Summarizer
 from loguru import logger
+from src.pipeline.interfaces import Summarizer
+
 
 class OpenRouterSummarizer(Summarizer):
     def summarize(self, raw_text: str) -> str:
