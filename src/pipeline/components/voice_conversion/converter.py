@@ -1,6 +1,8 @@
 """
 Stage 7: Voice Conversion components (RVC).
 """
+
+import soundfile as sf
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Optional, Any
@@ -114,8 +116,6 @@ class RVCComponent(PipelineComponent):
         - Optional pitch shift
         - Optional feature indexing
         """
-        import soundfile as sf
-        
         self._logger.debug(f"Converting voice: {source_path} -> {output_path}")
         
         # Read source audio
@@ -187,8 +187,6 @@ class AudioEnhancementComponent(PipelineComponent):
         self._logger.info(f"Enhancing audio: {source_audio.name}")
         
         try:
-            import soundfile as sf
-            
             audio, sr = sf.read(source_audio)
             
             if self._normalize:

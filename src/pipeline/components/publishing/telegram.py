@@ -1,5 +1,6 @@
 """Telegram Publisher implementation."""
 
+import requests
 from pathlib import Path
 from typing import Optional
 
@@ -45,8 +46,6 @@ class TelegramPublisher(Publisher):
         logger.info(f"Publishing to Telegram (chat_id={self._chat_id})...")
 
         try:
-            import requests
-
             with open(audio_path, 'rb') as audio_file:
                 files = {'audio': audio_file}
                 data = {

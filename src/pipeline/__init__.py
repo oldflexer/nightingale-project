@@ -1,9 +1,13 @@
-"""
-Nightingale Pipeline Package.
+"""Nightingale Pipeline Package - v2.0.
 
-New modular pipeline architecture with stages and components.
+Refactored modular pipeline architecture following Python best practices:
+- Explicit imports at module level
+- Custom exception hierarchy
+- Named constants instead of magic numbers
+- Protocol-based interfaces for flexibility
+- Immutable configuration
 
-Stages:
+Pipeline Stages:
     1. Parsing - fetch news from sources
     2. Aggregation - combine news into text
     3. Summarization - compress text with LLM
@@ -13,22 +17,27 @@ Stages:
     7. Voice Conversion - RVC (optional)
     8. Publishing - publish to channels
 
-Usage:
-    from src.pipeline import PipelineBuilder
+Example:
+    >>> from src.pipeline import PipelineBuilder
+    >>> pipeline = (PipelineBuilder()
+    ...     .with_parsing(parser)
+    ...     .with_aggregation()
+    ...     .with_summarization(summarizer)
+    ...     .with_tts(tts_engine)
+    ...     .with_publishing(publisher)
+    ...     .build())
+    >>> success = pipeline.run()
 
-    pipeline = (PipelineBuilder()
-        .with_parsing(parser)
-        .with_aggregation()
-        .with_summarization(summarizer, prefix="...", suffix="...")
-        .with_text_processing(accentor=True)
-        .with_tts(tts_engine)
-        .with_publishing(publisher)
-        .build())
-
-    pipeline.run()
+See Also:
+    - ARCHITECTURE.md for detailed architecture documentation
+    - README.md for usage examples
 """
 
-# Core classes
+# Re-export core modules for convenience
+from src.pipeline import constants
+from src.pipeline import exceptions
+from src.pipeline import interfaces
+from src.pipeline import utils
 from src.pipeline.context import PipelineContext
 from src.pipeline.base import PipelineComponent, Stage
 from src.pipeline.core import Pipeline, PipelineBuilder
@@ -52,7 +61,6 @@ from src.pipeline.components import (
     StructuredAggregator,
     # Summarization
     LLMSummarizerComponent,
-    PromptBasedSummarizer,
     # Text Processing
     SileroAccentorComponent,
     RuaccentComponent,
@@ -87,7 +95,11 @@ from src.pipeline.interfaces import (
     VoiceConverter,
 )
 
+
+
 __all__ = [
+    # Core utilities
+    "utils",
     # Core
     "PipelineContext",
     "PipelineComponent",
@@ -108,9 +120,8 @@ __all__ = [
     "DefaultAggregator",
     "StructuredAggregator",
     "LLMSummarizerComponent",
-    "PromptBasedSummarizer",
-    "SileroAccentorComponent",
-    "RuaccentComponent",
+        "SileroAccentorComponent",
+        "RuaccentComponent",
     "RuleBasedYoReplacer",
     "LLMYoReplacer",
     "CompositeTextProcessor",

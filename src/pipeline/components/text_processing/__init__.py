@@ -3,6 +3,7 @@ Text Processing Package - text processing components (accentuation, yo replaceme
 """
 
 from src.pipeline.components.text_processing.processors import (
+    YO_WORDS,
     TextProcessorComponent,
     SileroAccentorComponent,
     RuaccentComponent,
@@ -12,6 +13,7 @@ from src.pipeline.components.text_processing.processors import (
 )
 
 __all__ = [
+    "YO_WORDS",
     "TextProcessorComponent",
     "SileroAccentorComponent",
     "RuaccentComponent",

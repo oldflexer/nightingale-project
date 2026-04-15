@@ -4,7 +4,7 @@ Pipeline Context - контейнер данных для передачи ме�
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
 
 from loguru import logger
 

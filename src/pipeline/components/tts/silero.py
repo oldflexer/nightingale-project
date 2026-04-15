@@ -2,9 +2,11 @@ import torch
 import soundfile as sf
 import numpy as np
 from pathlib import Path
-from typing import Optional, Callable, List
+from typing import Any, Callable, cast
 from loguru import logger
+
 from src.pipeline.interfaces import TTSEngine
+from src.pipeline.utils import split_text_by_sentences
 
 
 class SileroTTSEngine(TTSEngine):
@@ -34,22 +36,36 @@ class SileroTTSEngine(TTSEngine):
         self.max_chars = max_chars
         self.silence_between_chunks = silence_between_chunks
         self.torch_device = torch.device(self.device)
+        self.tts_model: Any | None = None
+        self.example_text: Any | None = None
+        self.symbols: str | None = None
+        self.apply_tts_func: Callable[..., Any] | None = None
+        self.is_legacy = False
+        self.accentor = None
 
         # 1. Load Silero TTS model
         logger.info(f"Loading Silero TTS (language={language}, model={model}, voice={voice}, device={self.device})...")
+        self._load_tts_model(language)
+
+        # 2. Load accentor
+        if self.use_accent_stress:
+            self.accentor = self._load_accentor()
+
+    def _load_tts_model(self, language: str) -> None:
+        """Load Silero TTS model."""
         try:
             from silero import silero_tts
             result = silero_tts(
                 language=language,
-                speaker=model,
-                sample_rate=sample_rate,
+                speaker=self.model_name,
+                sample_rate=self.sample_rate,
                 device=self.device
             )
             if len(result) == 2:
                 self.tts_model, self.example_text = result
                 self.is_legacy = False
                 logger.info("Loaded Silero TTS (v5 style, 2 return values)")
-                if hasattr(self.tts_model, 'speakers'):
+                if self.tts_model is not None and hasattr(self.tts_model, 'speakers'):
                     available = self.tts_model.speakers
                     if self.voice not in available:
                         logger.warning(f"Voice '{self.voice}' not in {available}, using '{available[0]}'")
@@ -64,13 +80,7 @@ class SileroTTSEngine(TTSEngine):
             logger.error(f"Failed to load Silero TTS: {e}")
             raise
 
-        # 2. Load accentor
-        if self.use_accent_stress:
-            self.accentor = self._load_accentor()
-        else:
-            self.accentor = None
-
-    def _load_accentor(self) -> Optional[Callable]:
+    def _load_accentor(self) -> Callable[[str], str] | None:
         """Load silero-stress with fallback methods."""
         logger.info("Loading silero-stress for Russian accentuation...")
         try:
@@ -78,17 +88,16 @@ class SileroTTSEngine(TTSEngine):
             accentor = load_accentor()
             if accentor is not None and callable(accentor):
                 logger.info("silero-stress loaded (pip package)")
-                return accentor
+                return cast(Callable[[str], str], accentor)
         except Exception as e:
             logger.warning(f"Failed to load silero-stress via pip: {e}")
 
         try:
-            import torch
             torch.set_num_threads(1)
             accentor = torch.hub.load('snakers4/silero-stress', 'silero_stress')
             if accentor is not None and callable(accentor):
                 logger.info("silero-stress loaded (torch.hub)")
-                return accentor
+                return cast(Callable[[str], str], accentor)
         except Exception as e:
             logger.warning(f"Failed to load silero-stress via torch.hub: {e}")
 
@@ -105,77 +114,40 @@ class SileroTTSEngine(TTSEngine):
             except Exception as e:
                 logger.warning(f"silero-stress failed: {e}")
                 processed = text
+        
         if self.put_yo:
             processed = processed.replace('+е', 'ё').replace('+Е', 'Ё')
-        # Remove '+' stress markers
-        # processed = processed.replace('+', '')
+        
         logger.debug(f"Text after preprocessing: {processed[:100]}...")
         return processed
 
-    def _split_text(self, text: str) -> List[str]:
-        """
-        Split plain text into chunks by sentences, respecting max_chars.
-        Returns list of plain text chunks (without SSML tags).
-        """
-        # Разбиваем на предложения
-        sentences = []
-        current = ""
-        for char in text:
-            current += char
-            if char in ".!?":
-                sentences.append(current.strip())
-                current = ""
-        if current.strip():
-            sentences.append(current.strip())
-
-        # Объединяем предложения в чанки, не превышающие max_chars
-        chunks = []
-        current_chunk = ""
-        overhead = 100  # запас под <speak><prosody rate="slow"><prosody pitch="low">...</prosody></prosody></speak>
-        for sent in sentences:
-            # Учитываем, что при оборачивании в SSML добавятся теги (примерно 50 символов)
-            # Поэтому оставляем запас
-            if len(current_chunk) + len(sent) + 1 + overhead <= self.max_chars:
-                if current_chunk:
-                    current_chunk += " " + sent
-                else:
-                    current_chunk = sent
-            else:
-                if current_chunk:
-                    chunks.append(current_chunk)
-                current_chunk = sent
-        if current_chunk:
-            chunks.append(current_chunk)
-
-        # Если не получилось разбить (очень длинное предложение) — режем по словам
-        if not chunks:
-            words = text.split()
-            chunk_size = max(1, (self.max_chars - overhead) // 10)
-            for i in range(0, len(words), chunk_size):
-                chunk = " ".join(words[i:i+chunk_size])
-                if chunk:
-                    chunks.append(chunk)
-
-        logger.info(f"Split text into {len(chunks)} plain chunks (max {self.max_chars} chars)")
-        return chunks
+    def _split_text(self, text: str) -> list[str]:
+        """Split plain text into chunks by sentences, respecting max_chars."""
+        return split_text_by_sentences(
+            text,
+            max_chars=self.max_chars,
+            overhead=100
+        )
 
     def _wrap_chunk(self, plain_chunk: str) -> str:
         """Wrap plain text chunk into SSML with prosody tags."""
-        # Если чанк уже содержит SSML-теги (например, из препроцессинга), не добавляем повторно
+        # If chunk already contains SSML tags, skip wrapping
         if plain_chunk.strip().startswith('<speak>'):
             return plain_chunk
-        escaped = plain_chunk.replace('&', '&amp;') \
-                         .replace('<', '&lt;') \
-                         .replace('>', '&gt;') \
-                         .replace('"', '&quot;') \
-                         .replace("'", '&apos;')
+        
+        escaped = plain_chunk.replace('&', '&amp;')
+        escaped = escaped.replace('<', '&lt;')
+        escaped = escaped.replace('>', '&gt;')
+        escaped = escaped.replace('"', '&quot;')
+        escaped = escaped.replace("'", '&apos;')
+        
         return f'<speak><prosody rate="90%" pitch="-20%">{escaped}</prosody></speak>'
 
     def synthesize(self, text: str, output_path: Path) -> Path:
         logger.info(f"Synthesizing with Silero TTS, text length {len(text)} chars")
         processed_text = self._preprocess_text(text)
 
-        # Разбиваем на чанки (чистый текст)
+        # Split into chunks
         plain_chunks = self._split_text(processed_text)
         if not plain_chunks:
             raise RuntimeError("No text chunks to synthesize")
@@ -183,22 +155,28 @@ class SileroTTSEngine(TTSEngine):
         audio_segments = []
 
         for idx, plain_chunk in enumerate(plain_chunks):
-            # Оборачиваем чанк в SSML
             ssml_chunk = self._wrap_chunk(plain_chunk)
-            # Дополнительная проверка длины (если превышает max_chars + overhead, можно обрезать)
+            
             if len(ssml_chunk) > self.max_chars:
-                logger.warning(f"Chunk {idx+1} length {len(ssml_chunk)} exceeds limit, might fail")
+                logger.warning(f"Chunk {idx+1} length exceeds limit, might fail")
 
-            logger.debug(f"Synthesizing chunk {idx+1}/{len(plain_chunks)}, len={len(ssml_chunk)}: {plain_chunk[:50]}...")
+            logger.debug(f"Synthesizing chunk {idx+1}/{len(plain_chunks)}: {plain_chunk[:50]}...")
+            
             try:
                 if not self.is_legacy:
+                    if self.tts_model is None:
+                        raise RuntimeError("Silero TTS model not loaded")
                     audio = self.tts_model.apply_tts(
-                        ssml_text=ssml_chunk,          # используем ssml_text
+                        ssml_text=ssml_chunk,
                         speaker=self.voice,
                         sample_rate=self.sample_rate,
                     )
                 else:
-                    # legacy: не поддерживает SSML, используем обычный текст
+                    # Legacy: no SSML support, use plain text
+                    if self.apply_tts_func is None:
+                        raise RuntimeError("Legacy TTS function not available")
+                    if self.tts_model is None:
+                        raise RuntimeError("Silero TTS model not loaded")
                     audio = self.apply_tts_func(
                         texts=[plain_chunk],
                         model=self.tts_model,
@@ -220,7 +198,7 @@ class SileroTTSEngine(TTSEngine):
                 logger.error(f"Chunk {idx+1} synthesis failed: {e}")
                 raise RuntimeError(f"Failed to synthesize chunk {idx+1}: {e}")
 
-        # Склейка аудио (без изменений)
+        # Concatenate audio
         if not audio_segments:
             raise RuntimeError("No audio generated")
 

@@ -1,38 +1,91 @@
-"""
-Nightingale - News to Telegram Audio Pipeline
+"""Nightingale - News to Telegram Audio Pipeline.
 
-Main entry point using the new modular pipeline architecture.
+Main entry point using the modular pipeline architecture.
 """
+
 from pathlib import Path
 
 from loguru import logger
 
 from src.config import settings
-from src.parser.mil_ru import MilRuParser
-from src.summarizer.ollama import OllamaSummarizer
-from src.tts.silero import SileroTTSEngine
-from src.tts.f5 import F5TTSEngine
-from src.tts.coqui import CoquiTTSEngine
-from src.publisher.telegram import TelegramPublisher
 
 
-# =============================================================================
-# Factory functions for creating components
-# =============================================================================
-def create_parser():
+def main() -> None:
+    """Run the Nightingale news-to-audio pipeline."""
+    # Configure logging
+    _setup_logging()
+    
+    logger.info("=" * 60)
+    logger.info("Starting Nightingale Pipeline")
+    logger.info("=" * 60)
+    
+    # Create components based on settings
+    parser = _create_parser()
+    summarizer = _create_summarizer()
+    tts_engine = _create_tts()
+    publisher = _create_publisher()
+    
+    # Build and run pipeline
+    pipeline = _build_pipeline(
+        parser=parser,
+        summarizer=summarizer,
+        tts_engine=tts_engine,
+        publisher=publisher,
+    )
+    
+    # Print configuration summary
+    _log_pipeline_config(pipeline)
+    
+    # Execute
+    success = pipeline.run()
+    
+    if success:
+        logger.info("Pipeline completed successfully")
+    else:
+        logger.error("Pipeline finished with errors")
+    
+    exit(0 if success else 1)
+
+
+def _setup_logging() -> None:
+    """Configure application logging."""
+    log_file = Path("nightingale.log")
+    if log_file.exists():
+        log_file.unlink()
+    
+    logger.add(
+        "nightingale.log",
+        level="DEBUG",
+        format="{time} | {level} | {name}:{function}:{line} | {message}",
+    )
+
+
+def _create_parser():
     """Create parser based on settings."""
-    if settings.parser_type == "mil_ru":
+    parser_type = settings.parser_type
+    
+    if parser_type == "mil_ru":
+        from src.pipeline.components.parser import MilRuParser
         return MilRuParser(
             use_dynamic=settings.parser_use_dynamic,
-            timeout=20
+            timeout=20,
         )
+    elif parser_type == "rss":
+        from src.pipeline.components.parser import RssParser
+        return RssParser(source_url=settings.news_source_url)
+    elif parser_type == "static":
+        from src.pipeline.components.parser import StaticParser
+        return StaticParser(source_url=settings.news_source_url)
     else:
-        raise ValueError(f"Unknown parser type: {settings.parser_type}")
+        raise ValueError(f"Unknown parser type: {parser_type}")
 
 
-def create_summarizer():
+def _create_summarizer():
     """Create summarizer based on settings."""
-    if settings.summarizer_type == "ollama":
+    summarizer_type = settings.summarizer_type
+    
+    if summarizer_type == "ollama":
+        from src.pipeline.components.summarization import OllamaSummarizer
         return OllamaSummarizer(
             api_url=settings.ollama_api_url,
             model=settings.ollama_model,
@@ -41,36 +94,24 @@ def create_summarizer():
             max_retries=settings.ollama_max_retries,
             retry_delay=settings.ollama_retry_delay,
             temperature=settings.ollama_temperature,
-            max_tokens=settings.ollama_max_tokens
+            max_tokens=settings.ollama_max_tokens,
         )
+    elif summarizer_type == "openrouter":
+        from src.pipeline.components.summarization import OpenRouterSummarizer
+        return OpenRouterSummarizer()
+    elif summarizer_type == "mock":
+        from src.pipeline.components.summarization import MockSummarizer
+        return MockSummarizer()
     else:
-        raise ValueError(f"Unknown summarizer type: {settings.summarizer_type}")
+        raise ValueError(f"Unknown summarizer type: {summarizer_type}")
 
 
-def create_tts():
+def _create_tts():
     """Create TTS engine based on settings."""
     tts_type = settings.tts_type
-
-    if tts_type == "coqui":
-        return CoquiTTSEngine(
-            model_name=settings.tts_model_name,
-            voice_sample=settings.tts_voice_sample,
-            language=settings.tts_language,
-            device=settings.tts_device,
-        )
-    elif tts_type == "f5":
-        return F5TTSEngine(
-            ckpt_file=settings.f5_model_name,
-            vocab_file=settings.f5_vocab,
-            voice_sample=settings.f5_voice_sample,
-            timeout=settings.f5_timeout,
-            max_retries=settings.f5_max_retries,
-            retry_delay=settings.f5_retry_delay,
-            vocoder_local_path=settings.vocos_path,
-            device=settings.f5_device,
-            use_accent_stress=settings.f5_use_accent_stress
-        )
-    elif tts_type == "silero":
+    
+    if tts_type == "silero":
+        from src.pipeline.components.tts import SileroTTSEngine
         return SileroTTSEngine(
             language=settings.silero_language,
             model=settings.silero_model,
@@ -82,90 +123,95 @@ def create_tts():
             max_chars=settings.silero_max_chars,
             silence_between_chunks=settings.silero_silence_between_chunks,
         )
+    elif tts_type == "f5":
+        from src.pipeline.components.tts import F5TTSEngine
+        return F5TTSEngine(
+            model_path=settings.f5_model_name,
+            vocab_path=settings.f5_vocab,
+            device=settings.f5_device,
+        )
+    elif tts_type == "coqui":
+        from src.pipeline.components.tts import CoquiTTSEngine
+        return CoquiTTSEngine(
+            model_name=settings.tts_model_name,
+            device=settings.tts_device,
+        )
+    elif tts_type == "mock":
+        from src.pipeline.components.tts import MockTTSEngine
+        return MockTTSEngine(sample_rate=settings.silero_sample_rate)
     else:
         raise ValueError(f"Unknown TTS type: {tts_type}")
 
 
-def create_publisher():
+def _create_publisher():
     """Create publisher based on settings."""
-    if settings.publisher_type == "telegram":
+    publisher_type = settings.publisher_type
+    
+    if publisher_type == "telegram":
+        from src.pipeline.components.publishing import TelegramPublisher
         return TelegramPublisher(
             bot_token=settings.telegram_bot_token,
-            chat_id=settings.telegram_chat_id
+            chat_id=settings.telegram_chat_id,
         )
+    elif publisher_type == "discord":
+        from src.pipeline.components.publishing import DiscordPublisher
+        return DiscordPublisher()
+    elif publisher_type == "file":
+        from src.pipeline.components.publishing import FilePublisher
+        return FilePublisher()
+    elif publisher_type == "mock":
+        from src.pipeline.components.publishing import MockPublisher
+        return MockPublisher()
     else:
-        raise ValueError(f"Unknown publisher type: {settings.publisher_type}")
+        raise ValueError(f"Unknown publisher type: {publisher_type}")
 
 
-# =============================================================================
-# Main function
-# =============================================================================
-def main():
-    # Configure logging
-    log_file = Path("nightingale.log")
-    if log_file.exists():
-        log_file.unlink()
-
-    logger.add("nightingale.log", level="DEBUG", format="{time} | {level} | {name}:{function}:{line} | {message}")
-    logger.info("=" * 60)
-    logger.info("Starting Nightingale (New Pipeline Architecture)")
-    logger.info("=" * 60)
-
-    # Create components
-    parser = create_parser()
-    summarizer = create_summarizer()
-    tts_engine = create_tts()
-    publisher = create_publisher()
-
-    # Build pipeline using the builder
+def _build_pipeline(parser, summarizer, tts_engine, publisher):
+    """Build the pipeline with all components."""
     from src.pipeline import PipelineBuilder
-
-    pipeline = (PipelineBuilder()
+    
+    use_voice_clone = bool(settings.f5_voice_sample)
+    
+    return (
+        PipelineBuilder()
         .with_parsing(parser)
         .with_aggregation(aggregator_type="default")
         .with_summarization(
             summarizer,
-            prefix='Внимание! Говорит Москва! Передаем важное правительственное сообщение!... ',
-            suffix=' Наше дело правое! Враг будет разбит! Победа будет за нами!...'
+            prefix="Внимание! Говорит Москва! Передаем важное правительственное сообщение!... ",
+            suffix=" Наше дело правое! Враг будет разбит! Победа будет за нами!...",
         )
-        # Stage 4: Text Processing (optional)
-        # Uncomment to enable:
+        # Optional: Text Processing
         # .with_text_processing(accentor=True, accentor_type="silero", yo_replacer=False)
-
-        # Stage 5: Voice Preparation (optional)
-        # Uncomment to enable voice cloning:
-        # .with_voice_preparation(
-        #     voice_sample_path=settings.f5_voice_sample,
-        #     use_stt=True
-        # )
-
-        .with_tts(tts_engine, use_voice_clone=bool(settings.f5_voice_sample))
-
-        # Stage 7: Voice Conversion (optional)
-        # Uncomment to enable RVC:
+        
+        # Optional: Voice Preparation
+        # .with_voice_preparation(voice_sample_path=settings.f5_voice_sample, use_stt=True)
+        
+        .with_tts(tts_engine, use_voice_clone=use_voice_clone)
+        
+        # Optional: Voice Conversion
         # .with_voice_conversion(rvc_model_path="models/rvc/model.pth")
-
+        
         .with_publishing(publisher)
-        .build())
+        .build()
+    )
 
-    # Print pipeline summary
+
+def _log_pipeline_config(pipeline) -> None:
+    """Log pipeline configuration summary."""
     logger.info("\n" + "─" * 40)
     logger.info("Pipeline Configuration:")
     logger.info("─" * 40)
+    
     for stage in pipeline.stages:
         components = [c.name for c in stage.components if c.enabled]
         status = "✓" if stage.enabled else "✗"
-        logger.info(f"  {status} {stage.name}: {', '.join(components) if components else 'disabled'}")
+        logger.info(
+            f"  {status} {stage.name}: "
+            f"{', '.join(components) if components else 'disabled'}"
+        )
+    
     logger.info("─" * 40 + "\n")
-
-    # Run pipeline
-    success = pipeline.run()
-    if success:
-        logger.info("Pipeline completed successfully")
-        exit(0)
-    else:
-        logger.error("Pipeline finished with errors")
-        exit(1)
 
 
 if __name__ == "__main__":

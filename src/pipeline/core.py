@@ -2,12 +2,15 @@
 Main Pipeline class - orchestrates all stages.
 """
 from datetime import datetime
-from typing import Optional, List, Type
+from typing import TYPE_CHECKING, List, Optional
 
 from loguru import logger
 
+if TYPE_CHECKING:
+    pass
+
 from src.pipeline.context import PipelineContext
-from src.pipeline.base import Stage, PipelineComponent
+from src.pipeline.base import Stage
 from src.pipeline.stages import (
     ParsingStage,
     AggregationStage,
@@ -219,7 +222,9 @@ class PipelineBuilder:
         summarizer,
         prefix: str = "",
         suffix: str = "",
-        enabled: bool = True
+        enabled: bool = True,
+        fallback_to_mock: bool = True,
+        mock_max_chars: int = 500,
     ) -> "PipelineBuilder":
         """Configure summarization stage."""
         from src.pipeline.components import LLMSummarizerComponent
@@ -232,7 +237,9 @@ class PipelineBuilder:
                 summarizer=summarizer,
                 prefix=prefix,
                 suffix=suffix,
-                enabled=enabled
+                enabled=enabled,
+                fallback_to_mock=fallback_to_mock,
+                mock_max_chars=mock_max_chars,
             )
         )
         
@@ -257,7 +264,8 @@ class PipelineBuilder:
         self._text_processing_enabled = enabled
         stage = TextProcessingStage(enabled=enabled)
         
-        processors = []
+        # Build list of processors
+        processors: list = []
         
         if accentor:
             if accentor_type == "ruaccent":
@@ -268,12 +276,12 @@ class PipelineBuilder:
         if yo_replacer:
             processors.append(RuleBasedYoReplacer(enabled=enabled))
         
-        if processors:
-            stage.add_component(
-                CompositeTextProcessor(processors=processors, enabled=enabled)
-            )
-        
-        if processors:
+        # Add stage if enabled (with or without processors)
+        if enabled:
+            if processors:
+                stage.add_component(
+                    CompositeTextProcessor(processors=processors, enabled=enabled)
+                )
             self._stages.append(stage)
         
         return self

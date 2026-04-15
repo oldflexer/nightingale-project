@@ -1,7 +1,6 @@
 """
 Stage 2: Aggregation components.
 """
-from typing import Optional
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
@@ -87,17 +86,19 @@ class StructuredAggregator(PipelineComponent):
         
         parts = ["Today in the news:"]
         
-        for i, item in enumerate(news_items, 1):
+
+        for item in news_items:
             if isinstance(item, NewsItem):
                 title = item.title
                 content = item.content_text
             else:
                 title = getattr(item, 'title', 'No title')
                 content = getattr(item, 'content_text', str(item))
-            
-            # Format each news item
-            formatted = f"{title}. {content}"
-            parts.append(formatted)
+
+
+
+
+            parts.append(f"{title}. {content}")
         
         context.aggregated_text = " ".join(parts)
         self._logger.info(f"Aggregated text: {len(context.aggregated_text)} chars")

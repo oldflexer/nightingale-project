@@ -1,1 +1,129 @@
-"\"\"\"\nPipeline interfaces and base classes.\n\nThis module contains all interfaces for the Nightingale pipeline:\n- Core interfaces: Parser, Summarizer, TTSEngine, Publisher\n- Pipeline interfaces: TextAggregator, TextProcessor, VoiceExtractor, VoiceConverter\n- Data models: NewsItem\n- ComponentStatus enum\n\"\"\"\nfrom abc import ABC, abstractmethod\nfrom dataclasses import dataclass\nfrom datetime import datetime\nfrom enum import Enum\nfrom pathlib import Path\nfrom typing import List, Optional\n\n\n\n# =============================================================================\n# Data Models\n# =============================================================================\n\n@dataclass\nclass NewsItem:\n    \"\"\"Model for a single news item.\"\"\"\n    title: str\n    url: str\n    content_text: str\n    date: Optional[datetime] = None\n\n\n# =============================================================================\n# Core Interfaces\n# =============================================================================\n\nclass Parser(ABC):\n    \"\"\"Interface for news parsers.\"\"\"\n    \n    @abstractmethod\n    def fetch_latest(self) -> List[\"NewsItem\"]:\n        \"\"\"Return list of latest news items.\"\"\"\n        pass\n\n\nclass Summarizer(ABC):\n    \"\"\"Interface for text summarizers.\"\"\"\n    \n    @abstractmethod\n    def summarize(self, raw_text: str) -> str:\n        \"\"\"Return summarized text.\"\"\"\n        pass\n\n\nclass TTSEngine(ABC):\n    \"\"\"Interface for Text-to-Speech engines.\"\"\"\n    \n    @abstractmethod\n    def synthesize(self, text: str, output_path: Path) -> Path:\n        \"\"\"Convert text to audio, save to output_path, return the path.\"\"\"\n        pass\n\n\nclass Publisher(ABC):\n    \"\"\"Interface for audio publishers.\"\"\"\n    \n    @abstractmethod\n    def publish(self, audio_path: Path, caption: Optional[str] = None) -> bool:\n        \"\"\"Publish audio file, return success status.\"\"\"\n        pass\n\n\n# =============================================================================\n# Additional Pipeline-Specific Interfaces\n# =============================================================================\n\nclass TextAggregator(ABC):\n    \"\"\"Interface for text aggregation.\"\"\"\n    \n    @abstractmethod\n    def aggregate(self, news_items: list) -> str:\n        \"\"\"Aggregate news items into single text.\"\"\"\n        pass\n\n\nclass TextProcessor(ABC):\n    \"\"\"Interface for text processing (accentuation, yo replacement, etc.).\"\"\"\n    \n    @abstractmethod\n    def process(self, text: str) -> str:\n        \"\"\"Process text and return modified text.\"\"\"\n        pass\n\n\nclass VoiceExtractor(ABC):\n    \"\"\"Interface for voice/audio extraction from reference.\""]\n    \n    @abstractmethod\n    def extract(self, audio_path: Path) -> tuple[Path, str]:\n        \"\"\"\n        Extract voice from audio file.\n        Returns: (processed_audio_path, transcript)\n        \"\"\"\n        pass\n\n\nclass VoiceConverter(ABC):\n    \"\"\"Interface for voice conversion (RVC, etc.).\"\"\"\n    \n    @abstractmethod\n    def convert(\n        self,\n        source_path: Path,\n        reference_path: Path,\n        output_path: Path\n    ) -> Path:\n        \"\"\"Convert voice from source to reference voice style.\""]\n        pass\n\n\n# =============================================================================\n# Component Status\n# =============================================================================\n\nclass ComponentStatus(Enum):\n    \"\"\"Status of component execution.\"\"\"\n    SKIPPED = \"skipped\"\n    SUCCESS = \"success\"\n    FAILED = \"failed\"\n    WARNING = \"warning\""
+"""Pipeline interfaces and data models.
+
+This module defines contracts for pipeline components:
+- Core interfaces: Parser, Summarizer, TTSEngine, Publisher
+- Pipeline interfaces: TextAggregator, TextProcessor, VoiceExtractor, VoiceConverter
+- Data models: NewsItem
+- ComponentStatus enum
+"""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum, auto
+from pathlib import Path
+from typing import Any, Self
+
+
+# =============================================================================
+# Data Models
+# =============================================================================
+
+@dataclass
+class NewsItem:
+    """Model for a single news item."""
+    title: str
+    url: str
+    content_text: str
+    date: datetime | None = None
+
+
+# =============================================================================
+# Core Interfaces
+# =============================================================================
+
+class Parser(ABC):
+    """Interface for news parsers."""
+    
+    @abstractmethod
+    def fetch_latest(self) -> list[NewsItem]:
+        """Return list of latest news items."""
+        ...
+
+
+class Summarizer(ABC):
+    """Interface for text summarizers."""
+    
+    @abstractmethod
+    def summarize(self, raw_text: str) -> str:
+        """Return summarized text."""
+        ...
+
+
+class TTSEngine(ABC):
+    """Interface for Text-to-Speech engines."""
+    
+    @abstractmethod
+    def synthesize(self, text: str, output_path: Path) -> Path:
+        """Convert text to audio, save to output_path, return the path."""
+        ...
+
+
+class Publisher(ABC):
+    """Interface for audio publishers."""
+    
+    @abstractmethod
+    def publish(self, audio_path: Path, caption: str | None = None) -> bool:
+        """Publish audio file, return success status."""
+        ...
+
+
+# =============================================================================
+# Pipeline-Specific Interfaces
+# =============================================================================
+
+class TextAggregator(ABC):
+    """Interface for text aggregation."""
+    
+    @abstractmethod
+    def aggregate(self, news_items: list[Any]) -> str:
+        """Aggregate news items into single text."""
+        ...
+
+
+class TextProcessor(ABC):
+    """Interface for text processing (accentuation, yo replacement)."""
+    
+    @abstractmethod
+    def process(self, text: str) -> str:
+        """Process text and return modified text."""
+        ...
+
+
+class VoiceExtractor(ABC):
+    """Interface for voice/audio extraction from reference."""
+    
+    @abstractmethod
+    def extract(self, audio_path: Path) -> tuple[Path, str]:
+        """Extract voice from audio file.
+        
+        Returns:
+            Tuple of (processed_audio_path, transcript)
+        """
+        ...
+
+
+class VoiceConverter(ABC):
+    """Interface for voice conversion (RVC, etc.)."""
+    
+    @abstractmethod
+    def convert(
+        self,
+        source_path: Path,
+        reference_path: Path,
+        output_path: Path,
+    ) -> Path:
+        """Convert voice from source to reference voice style."""
+        ...
+
+
+# =============================================================================
+# Component Status
+# =============================================================================
+
+class ComponentStatus(Enum):
+    """Status of component execution."""
+    SKIPPED = auto()
+    SUCCESS = auto()
+    FAILED = auto()
+    WARNING = auto()

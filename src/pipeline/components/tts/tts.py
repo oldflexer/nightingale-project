@@ -1,6 +1,9 @@
 """
 Stage 6: TTS Synthesis components.
 """
+
+import numpy as np
+import soundfile as sf
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Optional
@@ -154,9 +157,6 @@ class TTSWithVoiceCloneComponent(TTSComponent):
         - Text chunking
         - Sequential synthesis
         """
-        import numpy as np
-        import soundfile as sf
-        
         # Chunk text
         chunks = self._split_text(text, max_chars=250)
         self._logger.info(f"Split text into {len(chunks)} chunks")

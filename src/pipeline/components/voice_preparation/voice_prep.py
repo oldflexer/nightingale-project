@@ -1,11 +1,19 @@
 """
 Stage 5: Voice Preparation components (VAD, STT, transcription).
 """
+
+import re
+import soundfile as sf
+import torch
 from pathlib import Path
-from typing import Optional, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    import torch as torch_types
 
 
 # =============================================================================
@@ -25,21 +33,20 @@ class VoiceLoaderComponent(PipelineComponent):
     
     def __init__(
         self,
-        voice_sample_path: Optional[str] = None,
+        voice_sample_path: str | None = None,
         vad_enabled: bool = True,
         enabled: bool = True,
     ):
         super().__init__(name="voice_loader", enabled=enabled)
         self._voice_sample_path = Path(voice_sample_path) if voice_sample_path else None
         self._vad_enabled = vad_enabled
-        self._vad_model: Optional[Any] = None
+        self._vad_model: Any = None
     
     def setup(self) -> None:
         """Load VAD model if enabled."""
         if self._vad_enabled:
             self._logger.info("Loading Silero VAD model...")
             try:
-                import torch
                 torch.set_num_threads(1)
                 self._vad_model = torch.hub.load(
                     'snakers4/silero-vad',
@@ -82,9 +89,6 @@ class VoiceLoaderComponent(PipelineComponent):
     
     def _apply_vad(self, audio_path: Path) -> Path:
         """Apply VAD to extract speech segments."""
-        import torch
-        import soundfile as sf
-        
         self._logger.debug("Applying VAD...")
         
         # Load audio
@@ -97,7 +101,7 @@ class VoiceLoaderComponent(PipelineComponent):
         
         # Get speech timestamps
         if callable(self._vad_model):
-            speech_probs = self._vad_model(audio_tensor, sr)
+            self._vad_model(audio_tensor, sr)
         
         # For now, return original path
         # Full VAD implementation would extract speech segments
@@ -120,19 +124,18 @@ class STTTranscriberComponent(PipelineComponent):
     
     def __init__(
         self,
-        stt_model: Optional[str] = "silero",
+        stt_model: str = "silero",
         enabled: bool = True,
     ):
         super().__init__(name="stt_transcriber", enabled=enabled)
         self._stt_model_name = stt_model
-        self._stt_model: Optional[Any] = None
+        self._stt_model: Any = None
     
     def setup(self) -> None:
         """Load STT model."""
         if self._stt_model_name == "silero":
             self._logger.info("Loading Silero STT model...")
             try:
-                import torch
                 torch.set_num_threads(1)
                 self._stt_model = torch.hub.load(
                     'snakers4/silero-models',
@@ -175,9 +178,6 @@ class STTTranscriberComponent(PipelineComponent):
         if self._stt_model is None:
             return ""
         
-        import torch
-        import soundfile as sf
-        
         # Load audio
         audio, sr = sf.read(audio_path)
         if audio.ndim > 1:
@@ -187,10 +187,10 @@ class STTTranscriberComponent(PipelineComponent):
         
         # Decode
         if callable(self._stt_model):
-            result: Any = self._stt_model(audio_tensor, sr)
+            result = self._stt_model(audio_tensor, sr)
             # Handle torch tensor result
             if hasattr(result, 'item'):
-                return str(result.item())
+                return str(cast(torch.Tensor, result).item())
             return str(result)
         return ""
 
@@ -204,6 +204,7 @@ class ReferenceYoReplacerComponent(PipelineComponent):
     Компонент замены 'е' на 'ё' в транскрипте референса.
     
     Выполняет то же самое, что YoReplacer, но для reference_transcript.
+    Использует общий словарь Ё-слов YO_WORDS.
     """
     
     def __init__(
@@ -226,9 +227,10 @@ class ReferenceYoReplacerComponent(PipelineComponent):
         self._logger.info("Replacing Е with Ё in reference transcript...")
         
         try:
-            # Simple rule-based replacement for now
-            # Could use LLM for more accurate replacement
-            processed = self._replace_yo(transcript)
+            from src.pipeline.components.text_processing.processors import (
+                YO_WORDS,
+            )
+            processed = self._replace_yo(transcript, YO_WORDS)
             context.reference_transcript = processed
             self._logger.debug(f"Yo replacement done: {processed[:100]}...")
         except Exception as e:
@@ -236,18 +238,12 @@ class ReferenceYoReplacerComponent(PipelineComponent):
         
         return context
     
-    def _replace_yo(self, text: str) -> str:
-        """Simple rule-based yo replacement."""
-        # Common words with ё
-        yo_map = {
-            "еще": "ещё",
-            "никогда": "никогда",
-            "все": "всё",  # context-dependent
-            "имеет": "имеет",
-        }
-        
-        result = text
-        for old, new in yo_map.items():
-            result = result.replace(old, new)
-        
-        return result
+    def _replace_yo(self, text: str, yo_words: tuple[str, ...]) -> str:
+        """Rule-based yo replacement using shared dictionary."""
+        for word in yo_words:
+            pattern = re.compile(
+                r'\b' + re.escape(word.replace('ё', 'е')) + r'\b',
+                re.IGNORECASE
+            )
+            text = pattern.sub(word, text)
+        return text

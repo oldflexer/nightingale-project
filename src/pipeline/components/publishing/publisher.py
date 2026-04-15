@@ -1,6 +1,8 @@
 """
 Stage 8: Publishing components.
 """
+
+import requests
 from pathlib import Path
 from typing import Optional
 
@@ -92,8 +94,6 @@ class TelegramPublisherComponent(PublisherComponent):
     
     def setup(self) -> None:
         """Test Telegram connection."""
-        import requests
-        
         self._logger.info("Testing Telegram connection...")
         try:
             response = requests.get(
@@ -130,8 +130,6 @@ class TelegramPublisherComponent(PublisherComponent):
         )
         
         try:
-            import requests
-            
             with open(audio_path, 'rb') as audio_file:
                 files = {'audio': audio_file}
                 data = {

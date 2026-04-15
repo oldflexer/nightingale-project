@@ -1,11 +1,32 @@
 """
 Stage 4: Text Processing components (accentuation, yo replacement).
 """
+import re
 from abc import abstractmethod
-from typing import Optional, Callable, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from src.pipeline.base import PipelineComponent
 from src.pipeline.context import PipelineContext
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+
+# =============================================================================
+# Constants
+# =============================================================================
+
+# Words where 'е' should be replaced with 'ё'
+YO_WORDS: tuple[str, ...] = (
+    "ещё", "что", "чтобы", "ничего", "всего", "все",
+    "также", "тоже", "теперь", "поэтому", "однако",
+    "будут", "будет", "имеет", "всех", "этих", "этого",
+    "других", "другого", "другим", "другими", "другое",
+    "сначала", "потом", "всегда", "никогда", "иногда",
+    "где", "когда", "как", "кто", "чего",
+    "человек", "людей", "людям", "людьми", "человеком",
+    "вчера", "сегодня", "завтра", "вечер", "утро",
+)
 
 
 # =============================================================================
@@ -83,7 +104,7 @@ class SileroAccentorComponent(TextProcessorComponent):
             target_field=target_field,
         )
         self._remove_markers = remove_markers
-        self._accentor: Optional[Callable] = None
+        self._accentor: Callable[..., Any] | None = None
     
     def setup(self) -> None:
         """Load silero-stress model."""
@@ -92,7 +113,7 @@ class SileroAccentorComponent(TextProcessorComponent):
         if self._accentor is None:
             self._logger.warning("Accentor not available, will pass through text")
     
-    def _load_accentor(self) -> Optional[Callable]:
+    def _load_accentor(self) -> "Callable[[str], str] | None":
         """Load silero-stress with fallback methods."""
         # Method 1: pip package
         try:
@@ -100,7 +121,7 @@ class SileroAccentorComponent(TextProcessorComponent):
             accentor = load_accentor()
             if callable(accentor):
                 self._logger.info("silero-stress loaded (pip package)")
-                return accentor
+                return cast(Callable[[str], str], accentor)
         except ImportError:
             self._logger.debug("silero-stress pip package not found")
         except Exception as e:
@@ -116,7 +137,7 @@ class SileroAccentorComponent(TextProcessorComponent):
             )
             if callable(accentor):
                 self._logger.info("silero-stress loaded (torch.hub)")
-                return accentor
+                return cast(Callable[[str], str], accentor)
         except Exception as e:
             self._logger.warning(f"Failed to load via torch.hub: {e}")
         
@@ -163,7 +184,7 @@ class RuaccentComponent(TextProcessorComponent):
             target_field=target_field,
         )
         self._model_size = model_size
-        self._accentor: Any = None  # Using Any to avoid type conflicts with RUAccent
+        self._accentor: Any = None
     
     def setup(self) -> None:
         """Load ruaccent model."""
@@ -199,7 +220,7 @@ class RuleBasedYoReplacer(TextProcessorComponent):
     """
     Компонент замены 'е' на 'ё' на основе правил.
     
-    Использует встроенные словари с 'ё' для замены.
+    Использует общий словарь YO_WORDS.
     """
     
     def __init__(
@@ -214,28 +235,15 @@ class RuleBasedYoReplacer(TextProcessorComponent):
             source_field=source_field,
             target_field=target_field,
         )
-        self._yo_words = self._load_yo_words()
-    
-    def _load_yo_words(self) -> set[str]:
-        """Load common Russian words with ё."""
-        # Базовый набор слов с Ё
-        return {
-            "ещё", "что", "чтобы", "ничего", "всего", "все",
-            "также", "тоже", "теперь", "поэтому", "однако",
-            "будут", "будет", "имеет", "всех", "этих", "этого",
-            "других", "другого", "другим", "другими", "другое",
-            "сначала", "потом", "всегда", "никогда", "иногда",
-            "где", "когда", "как", "кто", "что", "чего",
-            "человек", "людей", "людям", "людьми", "человеком",
-            "вчера", "сегодня", "завтра", "вечер", "утро",
-        }
     
     def _process_text(self, text: str) -> str:
-        import re
-        # Простая замена по словарю
-        for word in self._yo_words:
-            # Заменяем 'е' на 'ё' только для точных совпадений слов
-            pattern = re.compile(r'\b' + re.escape(word.replace('ё', 'е')) + r'\b', re.IGNORECASE)
+        """Replace 'е' with 'ё' using dictionary-based approach."""
+        for word in YO_WORDS:
+            # Replace 'е' with 'ё' only for exact word matches
+            pattern = re.compile(
+                r'\b' + re.escape(word.replace('ё', 'е')) + r'\b',
+                re.IGNORECASE
+            )
             text = pattern.sub(word, text)
         return text
 
@@ -263,7 +271,7 @@ class LLMYoReplacer(TextProcessorComponent):
     
     def __init__(
         self,
-        llm_client,  # Any object with .generate(prompt) -> str
+        llm_client,
         enabled: bool = True,
         batch_size: int = 500,
         source_field: str = "summarized_text",
@@ -283,11 +291,10 @@ class LLMYoReplacer(TextProcessorComponent):
             self._logger.warning("LLM client not set, skipping")
             return text
         
-        # Разбиваем на части для обработки
+        # Split into batches for processing
         parts = []
         for i in range(0, len(text), self._batch_size):
             chunk = text[i:i + self._batch_size]
-            
             try:
                 response = self._llm.generate(
                     prompt=f"{self.SYSTEM_PROMPT}\n\nТекст:\n{chunk}"

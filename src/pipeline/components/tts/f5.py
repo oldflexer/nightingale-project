@@ -1,6 +1,9 @@
+import numpy as np
+import soundfile as sf
 from pathlib import Path
 from typing import Optional
 from loguru import logger
+
 from src.pipeline.interfaces import TTSEngine
 
 
@@ -40,13 +43,7 @@ class F5TTSEngine(TTSEngine):
             Path to the generated audio file
         """
         logger.info(f"Synthesizing with F5-TTS, text length {len(text)} chars")
-        # Placeholder implementation
-        # In practice, this would call the F5-TTS synthesis
-        # For now, create a silent audio file
-        import numpy as np
-        import soundfile as sf
-        
-        # Create silent audio (1 second of silence)
+        # Placeholder: create silent audio (1 second)
         sample_rate = 24000
         silence = np.zeros(sample_rate, dtype=np.float32)
         sf.write(output_path, silence, sample_rate)
@@ -74,11 +71,7 @@ class F5TTSEngine(TTSEngine):
             Path to the generated audio file
         """
         logger.info("Starting F5-TTS synthesis with voice cloning")
-        # Placeholder implementation
-        import numpy as np
-        import soundfile as sf
-        
-        # Create silent audio (2 seconds of silence for demo)
+        # Placeholder: create silent audio (2 seconds)
         sample_rate = 24000
         silence = np.zeros(sample_rate * 2, dtype=np.float32)
         sf.write(output_path, silence, sample_rate)
@@ -103,10 +96,7 @@ class F5TTSEngine(TTSEngine):
             Tuple of (audio_array, sample_rate, additional_info)
         """
         logger.debug(f"F5-TTS infer: gen_text='{gen_text[:50]}...', ref_file={ref_file}")
-        # Placeholder implementation
-        import numpy as np
-        
-        # Return silent audio
+        # Placeholder: return silent audio (1 second)
         sample_rate = 24000
-        audio = np.zeros(sample_rate, dtype=np.float32)  # 1 second of silence
+        audio = np.zeros(sample_rate, dtype=np.float32)
         return audio, sample_rate, None

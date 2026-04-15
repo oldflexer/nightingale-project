@@ -1,9 +1,8 @@
 """
 Pipeline Stages - логические группы компонентов.
 """
-from typing import Optional, List
+from src.pipeline.base import Stage
 
-from src.pipeline.base import Stage, PipelineComponent
 from src.pipeline.context import PipelineContext
 
 
